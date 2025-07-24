@@ -1,0 +1,496 @@
+const SHEET_NAME = "PatientData"; 
+const SENSOR_READINGS_SHEET = "SensorReadings";
+const TIME_STAMP_COLUMN_NAME = "Timestamp";
+
+// Priority levels
+const PRIORITY = {
+  IMMEDIATE: "Immediate (0 min)",
+  URGENT: "Urgent (10-15 min)",
+  STANDARD: "Standard (15-30 min)",
+  NON_URGENT: "Non-Urgent (30-60 min)",
+  ROUTINE: "Routine (60+ min)"
+};
+
+// Function to handle sensor data from Arduino
+function doGet(e) {
+  try {
+    Logger.log("Received GET request with parameters: " + JSON.stringify(e.parameter));
+    
+    // Handle sensor data from Arduino
+    if (e.parameter && e.parameter.action === "addData") {
+      Logger.log("Processing addData action");
+      
+      // Get the sensor data
+      const temperature = parseFloat(e.parameter.temperature) || null;
+      const spo2 = parseFloat(e.parameter.spo2) || null;
+      const heartRate = parseFloat(e.parameter.heartrate) || null;
+      
+      Logger.log("Sensor data values: T=" + temperature + ", SpO2=" + spo2 + ", HR=" + heartRate);
+      
+      // Store the readings
+      try {
+        const result = storeSensorReading({
+          temperature: temperature,
+          spo2: spo2,
+          heartRate: heartRate
+        });
+        
+        return ContentService.createTextOutput("Success: Sensor data stored").setMimeType(ContentService.MimeType.TEXT);
+      } catch (storageError) {
+        Logger.log("Error storing sensor data: " + storageError);
+        return ContentService.createTextOutput("Error: " + storageError.toString()).setMimeType(ContentService.MimeType.TEXT);
+      }
+    }
+    
+    // Default response for other GET requests
+    return ContentService.createTextOutput("TriageTech Solutions API is active").setMimeType(ContentService.MimeType.TEXT);
+  } catch (error) {
+    Logger.log("Error in doGet: " + error);
+    return ContentService.createTextOutput("Error: " + error.toString()).setMimeType(ContentService.MimeType.TEXT);
+  }
+}
+
+// Function to handle form submissions
+function doPost(e) {
+  try {
+    Logger.log("Received form submission: " + JSON.stringify(e));
+    
+    // Parse form data
+    let data = parseFormData(e);
+    
+    if (Object.keys(data).length === 0) {
+      return ContentService.createTextOutput("Error: No data received").setMimeType(ContentService.MimeType.TEXT);
+    }
+    
+    // Format data from form
+    const medicalHistory = formatMedicalHistory(data);
+    const emergencyContact = formatEmergencyContact(data);
+    const symptom = data.symptoms || "";
+    
+    // Get the latest vital signs
+    let vitalSigns = getLatestReading();
+    
+    // If no vital signs found, use default empty values
+    if (!vitalSigns) {
+      vitalSigns = { temperature: null, spo2: null, heartRate: null };
+    } else {
+      // Mark this reading as used so it won't be used again
+      markReadingAsUsed(vitalSigns.timestamp);
+    }
+    
+    // Determine priority and wait time
+    const triageResult = calculatePriority(symptom, vitalSigns, medicalHistory);
+    Logger.log("Triage result: " + JSON.stringify(triageResult));
+    
+    // Map data for sheet
+    const mappedData = {
+      "Timestamp": new Date(),
+      "Name": data.Name || "",
+      "Date of Birth": data.dob || "",
+      "Gender": data.gender || "",
+      "Address": data.Address || "",
+      "Phone": data.Phone || "",
+      "Emergency Contact": emergencyContact,
+      "Medical History": medicalHistory || "",
+      "Symptoms": symptom,
+      "Temperature (°C)": vitalSigns.temperature || "",
+      "SpO₂ (%)": vitalSigns.spo2 || "",
+      "Heart Rate (BPM)": vitalSigns.heartRate || "",
+      "Priority": triageResult.priority,
+      "Wait Time": triageResult.waitTime,
+      "Acuity Score": triageResult.score,
+      "Notes": triageResult.notes
+    };
+    
+    // Append to sheet
+    try {
+      appendToGoogleSheet(mappedData);
+      return ContentService.createTextOutput("Success: Patient data recorded").setMimeType(ContentService.MimeType.TEXT);
+    } catch (sheetError) {
+      Logger.log("Error appending to sheet: " + sheetError.toString());
+      return ContentService.createTextOutput("Error: " + sheetError.toString()).setMimeType(ContentService.MimeType.TEXT);
+    }
+  } catch (error) {
+    Logger.log("Error: " + error.toString());
+    return ContentService.createTextOutput("Error: " + error.toString()).setMimeType(ContentService.MimeType.TEXT);
+  }
+}
+
+// Parse form data from different formats
+function parseFormData(e) {
+  let data = {};
+  
+  // Check how the data is coming in
+  if (e.postData && e.postData.type === "application/x-www-form-urlencoded") {
+    // Handle URL-encoded form data
+    const params = e.postData.contents.split("&");
+    
+    for (let i = 0; i < params.length; i++) {
+      const pair = params[i].split("=");
+      
+      if (pair.length === 2) {
+        const key = decodeURIComponent(pair[0]);
+        const value = decodeURIComponent(pair[1].replace(/\+/g, " "));
+        data[key] = value;
+      }
+    }
+  } else if (e.postData && (e.postData.type.includes("application/json") || e.postData.type.includes("text/plain"))) {
+    // Handle JSON data
+    try {
+      data = JSON.parse(e.postData.contents);
+    } catch (error) {
+      Logger.log("Failed to parse JSON: " + error);
+      throw new Error("Error parsing JSON: " + error);
+    }
+  } else if (e.parameter) {
+    // Try to get data from parameters directly
+    data = e.parameter;
+  }
+  
+  return data;
+}
+
+// Store sensor readings in the readings sheet
+function storeSensorReading(params) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // Get or create sensor readings sheet
+  let sensorSheet = ss.getSheetByName(SENSOR_READINGS_SHEET);
+  if (!sensorSheet) {
+    sensorSheet = ss.insertSheet(SENSOR_READINGS_SHEET);
+    sensorSheet.getRange(1, 1, 1, 5).setValues([["Timestamp", "Temperature", "SpO2", "HeartRate", "Used"]]);
+  }
+  
+  // Current timestamp
+  const timestamp = new Date();
+  
+  // Get data
+  const temperature = parseFloat(params.temperature) || null;
+  const spo2 = parseFloat(params.spo2) || null;
+  const heartRate = parseFloat(params.heartRate) || null;
+  
+  // Add data to sheet
+  sensorSheet.appendRow([
+    timestamp,
+    temperature,
+    spo2,
+    heartRate,
+    "No" // Not used yet
+  ]);
+  
+  return {
+    timestamp: timestamp,
+    temperature: temperature,
+    spo2: spo2,
+    heartRate: heartRate
+  };
+}
+
+// Get the latest unused reading
+function getLatestReading() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sensorSheet = ss.getSheetByName(SENSOR_READINGS_SHEET);
+  
+  if (!sensorSheet) {
+    return null;
+  }
+  
+  // Get all data
+  const data = sensorSheet.getDataRange().getValues();
+  
+  // Skip header row and find the latest unused reading (most recent first)
+  for (let i = data.length - 1; i > 0; i--) {
+    if (data[i][4] === "No") { // "Used" column is "No"
+      return {
+        timestamp: data[i][0],
+        temperature: data[i][1],
+        spo2: data[i][2],
+        heartRate: data[i][3]
+      };
+    }
+  }
+  
+  // No unused readings found
+  return null;
+}
+
+// Mark a reading as used by timestamp
+function markReadingAsUsed(timestamp) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sensorSheet = ss.getSheetByName(SENSOR_READINGS_SHEET);
+  
+  if (!sensorSheet) {
+    return;
+  }
+  
+  // Get all data
+  const data = sensorSheet.getDataRange().getValues();
+  
+  // Find the reading by timestamp and mark as used
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0].getTime() === timestamp.getTime()) {
+      sensorSheet.getRange(i + 1, 5).setValue("Yes");
+      break;
+    }
+  }
+}
+
+// Calculate patient priority based on symptoms and vital signs
+function calculatePriority(symptom, vitalSigns, medicalHistory) {
+  let score = 0;
+  let notes = [];
+  
+  // Check vital signs
+  if (vitalSigns.temperature !== null) {
+    if (vitalSigns.temperature > 39.5) {
+      score += 30;
+      notes.push("High fever");
+    } else if (vitalSigns.temperature > 38.0) {
+      score += 15;
+      notes.push("Fever");
+    } else if (vitalSigns.temperature < 35.0) {
+      score += 30;
+      notes.push("Hypothermia");
+    }
+  }
+  
+  if (vitalSigns.spo2 !== null) {
+    if (vitalSigns.spo2 < 90) {
+      score += 40;
+      notes.push("Severe hypoxemia");
+    } else if (vitalSigns.spo2 < 94) {
+      score += 20;
+      notes.push("Hypoxemia");
+    }
+  }
+  
+  if (vitalSigns.heartRate !== null) {
+    if (vitalSigns.heartRate > 120) {
+      score += 20;
+      notes.push("Tachycardia");
+    } else if (vitalSigns.heartRate < 50) {
+      score += 20;
+      notes.push("Bradycardia");
+    }
+  }
+  
+  // Check symptoms (high priority conditions)
+  const highPrioritySymptoms = [
+    "Chest Pains", "Severe Head Injury", "Uncontrolled Bleeding", 
+    "Broken Bone – Out of Skin", "Stroke Symptoms", 
+    "Suicidal or Homicidal Feelings", "Trouble Breathing"
+  ];
+  
+  const mediumPrioritySymptoms = [
+    "Fever with rash", "Animal Bite – Broken Skin", 
+    "Animal Bite – Severe Bleeding", "Fever"
+  ];
+  
+  const lowerPrioritySymptoms = [
+    "Fever without rash", "Sprained Ankle", 
+    "Broken Finger", "Eye Discharge", "Hives, Itchy Skin"
+  ];
+  
+  // Check for high priority symptoms
+  for (const highSymptom of highPrioritySymptoms) {
+    if (symptom.includes(highSymptom)) {
+      score += 40;
+      notes.push("High priority symptom: " + highSymptom);
+      break;
+    }
+  }
+  
+  // Check for medium priority symptoms
+  for (const mediumSymptom of mediumPrioritySymptoms) {
+    if (symptom.includes(mediumSymptom)) {
+      score += 20;
+      notes.push("Medium priority symptom: " + mediumSymptom);
+      break;
+    }
+  }
+  
+  // Check for lower priority symptoms
+  for (const lowSymptom of lowerPrioritySymptoms) {
+    if (symptom.includes(lowSymptom)) {
+      score += 10;
+      notes.push("Lower priority symptom: " + lowSymptom);
+      break;
+    }
+  }
+  
+  // Check medical history for complicating factors
+  const highRiskConditions = ["heart-disease", "diabetes", "hypertension", "cancer"];
+  for (const condition of highRiskConditions) {
+    if (medicalHistory.includes(condition)) {
+      score += 10;
+      notes.push("High risk condition: " + condition);
+    }
+  }
+  
+  // Determine priority and wait time based on score
+  let priority, waitTime;
+  
+  if (score >= 70) {
+    priority = PRIORITY.IMMEDIATE;
+    waitTime = "0 minutes";
+  } else if (score >= 50) {
+    priority = PRIORITY.URGENT;
+    waitTime = "10-15 minutes";
+  } else if (score >= 30) {
+    priority = PRIORITY.STANDARD;
+    waitTime = "15-30 minutes";
+  } else if (score >= 15) {
+    priority = PRIORITY.NON_URGENT;
+    waitTime = "30-60 minutes";
+  } else {
+    priority = PRIORITY.ROUTINE;
+    waitTime = "60+ minutes";
+  }
+  
+  return {
+    priority: priority,
+    waitTime: waitTime,
+    score: score,
+    notes: notes.join("; ")
+  };
+}
+
+// Helper function to format medical history data
+function formatMedicalHistory(data) {
+  let historyItems = [];
+  
+  // Handle checkbox values (history field could be an array)
+  if (Array.isArray(data.history)) {
+    historyItems = data.history;
+  } else if (data.history) {
+    // If it's a single value
+    historyItems.push(data.history);
+  }
+  
+  // Add the "other" field if it exists
+  if (data["history-other"]) {
+    historyItems.push("Other: " + data["history-other"]);
+  }
+  
+  return historyItems.join(", ");
+}
+
+// Helper function to format emergency contact information
+function formatEmergencyContact(data) {
+  let contactInfo = [];
+  
+  if (data.EmergencyName) {
+    contactInfo.push(data.EmergencyName);
+  }
+  
+  if (data.EmergencyRelation) {
+    contactInfo.push("(" + data.EmergencyRelation + ")");
+  }
+  
+  if (data.EmergencyPhone) {
+    contactInfo.push(data.EmergencyPhone);
+  }
+  
+  return contactInfo.join(" ");
+}
+
+// Append data to Google Sheet
+function appendToGoogleSheet(data) {
+  // Get active sheet
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    throw new Error("Could not access the active spreadsheet.");
+  }
+  
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME);
+  }
+  
+  // Get headers from first row
+  const headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+  
+  // If there are no headers, create them from the data object
+  if (headers.length === 0 || (headers.length === 1 && headers[0] === "")) {
+    const newHeaders = Object.keys(data);
+    sheet.getRange(1, 1, 1, newHeaders.length).setValues([newHeaders]);
+    sheet.getRange(2, 1, 1, newHeaders.length).setValues([newHeaders.map(header => data[header] || "")]);
+    
+    // Format header row
+    sheet.getRange(1, 1, 1, newHeaders.length).setBackground("#f0f0f0").setFontWeight("bold");
+    sheet.setFrozenRows(1);
+    return;
+  }
+  
+  // Create row data based on headers
+  const rowData = [];
+  for (let i = 0; i < headers.length; i++) {
+    const header = headers[i];
+    if (header === TIME_STAMP_COLUMN_NAME && data[header] instanceof Date) {
+      rowData.push(data[header]);
+    } else {
+      rowData.push(data[header] || "");
+    }
+  }
+  
+  // Append row to sheet
+  sheet.appendRow(rowData);
+  
+  // Apply conditional formatting for priority column
+  try {
+    // Find the priority column
+    const priorityColIndex = headers.indexOf("Priority") + 1;
+    if (priorityColIndex > 0) {
+      const lastRow = sheet.getLastRow();
+      
+      // Apply color based on priority level
+      const priorityCell = sheet.getRange(lastRow, priorityColIndex);
+      const priorityValue = priorityCell.getValue();
+      
+      if (priorityValue === PRIORITY.IMMEDIATE) {
+        priorityCell.setBackground("#ff0000"); // Red
+      } else if (priorityValue === PRIORITY.URGENT) {
+        priorityCell.setBackground("#ff9900"); // Orange
+      } else if (priorityValue === PRIORITY.STANDARD) {
+        priorityCell.setBackground("#ffff00"); // Yellow
+      } else if (priorityValue === PRIORITY.NON_URGENT) {
+        priorityCell.setBackground("#00ff00"); // Green
+      } else {
+        priorityCell.setBackground("#0099ff"); // Blue
+      }
+    }
+    
+    // Auto-resize columns to fit content
+    for (let i = 1; i <= sheet.getLastColumn(); i++) {
+      sheet.autoResizeColumn(i);
+    }
+  } catch (e) {
+    // Formatting is not critical, so just log errors and continue
+    Logger.log("Formatting error (non-critical): " + e.toString());
+  }
+}
+
+// Clean up old readings (can be scheduled to run daily)
+function cleanupOldReadings() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sensorSheet = ss.getSheetByName(SENSOR_READINGS_SHEET);
+  
+  if (!sensorSheet) {
+    return;
+  }
+  
+  const now = new Date();
+  const data = sensorSheet.getDataRange().getValues();
+  
+  // Start from row 2 to skip header
+  for (let i = data.length - 1; i > 0; i--) {
+    const timestamp = data[i][0];
+    if (timestamp instanceof Date) {
+      // Remove readings older than 24 hours
+      const hoursDiff = (now - timestamp) / (1000 * 60 * 60);
+      if (hoursDiff > 24) {
+        sensorSheet.deleteRow(i + 1);
+      }
+    }
+  }
+}

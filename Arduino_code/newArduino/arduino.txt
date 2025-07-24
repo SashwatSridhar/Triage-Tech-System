@@ -1,0 +1,375 @@
+#include <Wire.h> 
+
+#include <Adafruit_MLX90614.h> 
+
+#include <LiquidCrystal.h> 
+
+#include "MAX30100_PulseOximeter.h" 
+
+ 
+
+ 
+
+#define REPORTING_PERIOD_MS  1000 
+
+#define AVERAGE_TIME_MS  30000  // 30 seconds 
+
+ 
+
+ 
+
+// Pin assignments 
+
+const int touchPin = 7;   
+
+const int pulsePin = 8;   
+
+const int redLED = 10; 
+
+const int yellowLED = 9; 
+
+const int greenLED = 6; 
+
+ 
+
+ 
+
+unsigned long lastTouchTime = 0;   
+
+unsigned long startTime = 0; 
+
+bool displayActive = false;   
+
+bool collectingData = false; 
+
+bool waitingForNewTouch = false;  // New flag to prevent restarting instantly 
+
+ 
+
+ 
+
+// Sensor objects 
+
+Adafruit_MLX90614 mlx = Adafruit_MLX90614(); 
+
+PulseOximeter pox; 
+
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2); 
+
+ 
+
+ 
+
+uint32_t tsLastReport = 0; 
+
+int dataCount = 0; 
+
+float tempSum = 0, heartRateSum = 0, spO2Sum = 0; 
+
+ 
+
+ 
+
+void onBeatDetected() { 
+
+    Serial.println("Beat!");   
+
+} 
+
+ 
+
+ 
+
+void setup() { 
+
+    Serial.begin(9600); 
+
+    
+
+    if (!pox.begin()) { 
+
+        Serial.println("Pulse Oximeter Initialization FAILED"); 
+
+        while (true); 
+
+    } 
+
+    
+
+    Serial.println("Pulse Oximeter Initialized"); 
+
+    pox.setIRLedCurrent(MAX30100_LED_CURR_7_6MA); 
+
+    pox.setOnBeatDetectedCallback(onBeatDetected); 
+
+ 
+
+ 
+
+    if (!mlx.begin()) { 
+
+        Serial.println("Failed to initialize MLX90614 sensor."); 
+
+        while (true); 
+
+    } 
+
+ 
+
+ 
+
+    Wire.begin(); 
+
+    Serial.println("I2C Scanner Ready"); 
+
+ 
+
+ 
+
+    pinMode(redLED, OUTPUT); 
+
+    pinMode(yellowLED, OUTPUT); 
+
+    pinMode(greenLED, OUTPUT); 
+
+    pinMode(touchPin, INPUT); 
+
+    pinMode(pulsePin, INPUT); 
+
+ 
+
+ 
+
+    lcd.begin(16, 2); 
+
+    lcd.setCursor(0, 0); 
+
+    lcd.print("Waiting for"); 
+
+    lcd.setCursor(0, 1); 
+
+    lcd.print("Contact"); 
+
+ 
+
+    digitalWrite(redLED, HIGH); 
+
+    digitalWrite(yellowLED, LOW); 
+
+    digitalWrite(greenLED, LOW); 
+
+} 
+
+ 
+
+ 
+
+void updateDisplay(float temp, float heartRate, float spO2) { 
+
+    lcd.clear(); 
+
+    lcd.setCursor(0, 0); 
+
+    lcd.print("Temp:"); 
+
+    lcd.print(temp); 
+
+ 
+
+ 
+
+    lcd.setCursor(0, 1); 
+
+    lcd.print("HR:"); 
+
+    lcd.print(heartRate); 
+
+    
+
+    lcd.setCursor(9, 1); 
+
+    lcd.print("BO:"); 
+
+    lcd.print(spO2); 
+
+} 
+
+ 
+
+void loop() { 
+
+    pox.update(); 
+
+ 
+
+ 
+
+    if (millis() - tsLastReport > REPORTING_PERIOD_MS) { 
+
+        tsLastReport = millis(); 
+
+    } 
+
+ 
+
+ 
+
+    int touchState = digitalRead(touchPin); 
+
+ 
+
+ 
+
+    if (touchState == HIGH && !collectingData && !waitingForNewTouch) { 
+
+        collectingData = true; 
+
+        startTime = millis(); 
+
+        dataCount = 0; 
+
+        tempSum = heartRateSum = spO2Sum = 0; 
+
+        lastTouchTime = millis();  // Update touch time 
+
+        Serial.println("Data collection started!"); 
+
+        lcd.clear(); 
+
+        lcd.setCursor(0, 0); 
+
+        lcd.print("Data Collection"); 
+
+        lcd.setCursor(0, 1); 
+
+        lcd.print("In Progress..."); 
+
+ 
+
+        digitalWrite(redLED, LOW); 
+
+        digitalWrite(yellowLED, HIGH); 
+
+        digitalWrite(greenLED, LOW); 
+
+    } 
+
+ 
+
+ 
+
+    if (collectingData && millis() - startTime < AVERAGE_TIME_MS) { 
+
+        float objectTemp = mlx.readObjectTempC(); 
+
+        float objectPulse = pox.getHeartRate(); 
+
+        float objectSpO2 = pox.getSpO2(); 
+
+ 
+
+ 
+
+        if (objectPulse >= 30 && objectSpO2 >= 70) {  // Allow small values 
+
+            tempSum += objectTemp; 
+
+            heartRateSum += objectPulse; 
+
+            spO2Sum += objectSpO2; 
+
+            dataCount++; 
+
+        } 
+
+    } 
+
+    else if (collectingData) { 
+
+        collectingData = false; 
+
+        waitingForNewTouch = true;  // Prevent instant restart 
+
+ 
+
+ 
+
+        float avgTemp = (dataCount > 0) ? tempSum / dataCount : 0; 
+
+        float avgHeartRate = (dataCount > 0) ? heartRateSum / dataCount : 0; 
+
+        float avgSpO2 = (dataCount > 0) ? spO2Sum / dataCount : 0; 
+
+ 
+
+ 
+
+        Serial.println("Data collection completed:"); 
+
+        Serial.print("Temperature = "); 
+
+        Serial.println(avgTemp); 
+
+        Serial.print("Heart Rate = "); 
+
+        Serial.println(avgHeartRate); 
+
+        Serial.print("SpO2 = "); 
+
+        Serial.println(avgSpO2); 
+
+ 
+
+        lcd.clear(); 
+
+        lcd.setCursor(0, 0); 
+
+        lcd.print("Data Received"); 
+
+        lcd.setCursor(0, 1); 
+
+        lcd.print("Remove Hand"); 
+
+ 
+
+        digitalWrite(redLED, LOW); 
+
+        digitalWrite(yellowLED, LOW); 
+
+        digitalWrite(greenLED, HIGH); 
+
+    } 
+
+ 
+
+    if (waitingForNewTouch && millis() - lastTouchTime > 60000) {   
+
+        waitingForNewTouch = false;  // Ready for new touch 
+
+        lcd.clear(); 
+
+        lcd.setCursor(0, 0); 
+
+        lcd.print("Waiting for"); 
+
+        lcd.setCursor(0, 1); 
+
+        lcd.print("Contact"); 
+
+        displayActive = false; 
+
+ 
+
+ 
+
+        digitalWrite(redLED, HIGH); 
+
+        digitalWrite(yellowLED, LOW); 
+
+        digitalWrite(greenLED, LOW); 
+
+    } 
+
+} 
+
+ 

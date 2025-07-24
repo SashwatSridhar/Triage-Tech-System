@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TriageTech Solutions</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <style>
+        /* General Styling */
+        body {
+            background-color: #f0f8ff;
+            font-family: Arial, sans-serif;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            height: auto;
+        }
+
+        /* Form Container */
+        .container {
+            width: 80%;
+            max-width: 800px;
+            background-color: #fff;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: left;
+            border: 2px solid #ccc;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #e8f1ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .header-title {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: black;
+            text-align: center;
+            width: 100%;
+        }
+
+        /* Headings */
+        .subtitle {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #0073e6;
+        }
+
+        /* Form Fields Layout */
+        .field-group {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .field {
+            width: 48%;
+            margin-bottom: 10px;
+        }
+
+        .field.full-width {
+            width: 100%;
+        }
+
+        /* Input Fields */
+        .input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+            background-color: #f9f9f9;
+        }
+
+        /* Checkbox and Radio Inputs */
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        label {
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+
+        /* Submit Button */
+        .button.is-primary {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-top: 15px;
+            display: block;
+            width: 100%;
+        }
+
+        .button.is-primary:hover {
+            background-color: #2980b9;
+        }
+
+        /* Styling for Symptoms Buttons */
+        .buttons-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+            margin-bottom: 20px;
+        }
+
+        .buttons-group .button {
+            font-size: 0.9em;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            background-color: #f8f8f8;
+            cursor: pointer;
+        }
+
+        .buttons-group .button:hover {
+            background-color: #e0e0e0;
+        }
+
+        /* Debug message box */
+        #message {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
+        }
+
+        /* Debug information panel */
+        #debugBox {
+            margin-top: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f8f8f8;
+        }
+
+        .tab-content {
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <span class="header-title">MEDICAL FORM TriageTech Solutions</span>
+        </div>
+        
+        <!-- Message box for notifications -->
+        <div id="message" style="display: none;"></div>
+        
+        <form id="form">
+            <h2 class="subtitle">PATIENT INFORMATION</h2>
+            <div class="field-group">
+                <div class="field">
+                    <label class="label">Name</label>
+                    <input class="input" type="text" placeholder="Enter your name" name="Name" required>
+                </div>
+                <div class="field">
+                    <label class="label">Date of Birth</label>
+                    <input class="input" type="date" name="dob" required>
+                </div>
+            </div>
+            
+            <div class="field-group">
+                <div class="field">
+                    <label class="label">Gender</label>
+                    <div class="radio-group">
+                        <input type="radio" name="gender" value="male"> Male
+                        <input type="radio" name="gender" value="female"> Female
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">Address</label>
+                    <input class="input" type="text" placeholder="Enter your address" name="Address" required>
+                </div>
+            </div>
+
+            <div class="field-group">
+                <div class="field">
+                    <label class="label">Phone Number</label>
+                    <input class="input" type="tel" placeholder="Enter your phone number" name="Phone" required>
+                </div>
+            </div>
+
+            <h2 class="subtitle">EMERGENCY CONTACT INFORMATION</h2>
+            <div class="field-group">
+                <div class="field">
+                    <label class="label">Full Name</label>
+                    <input class="input" type="text" placeholder="Enter emergency contact name" name="EmergencyName" required>
+                </div>
+                <div class="field">
+                    <label class="label">Relationship</label>
+                    <input class="input" type="text" placeholder="Enter relationship" name="EmergencyRelation" required>
+                </div>
+                <div class="field">
+                    <label class="label">Phone Number</label>
+                    <input class="input" type="tel" placeholder="Enter phone number" name="EmergencyPhone" required>
+                </div>
+            </div>
+
+            <h2 class="subtitle">MEDICAL HISTORY</h2>
+            <div class="checkbox-group">
+                <label><input type="checkbox" name="history" value="heart-disease"> Heart Disease</label>
+                <label><input type="checkbox" name="history" value="diabetes"> Diabetes</label>
+                <label><input type="checkbox" name="history" value="hypertension"> Hypertension</label>
+                <label><input type="checkbox" name="history" value="cancer"> Cancer</label>
+                <br>
+                <label>Other:</label> 
+                <input class="input" type="text" name="history-other">
+            </div>
+
+            <br>
+            <h2 class="subtitle">REASON FOR VISIT</h2>
+            <div class="field full-width">
+                <label class="label">Describe your symptoms</label>
+                <textarea class="input" rows="4" id="symptoms" name="symptoms" placeholder="Describe your symptoms"></textarea>
+            </div>
+
+            <div class="buttons-group">
+                <button type="button" class="button is-light symptom-button">Chest Pains</button>
+                <button type="button" class="button is-light symptom-button">Severe Head Injury</button>
+                <button type="button" class="button is-light symptom-button">Fever</button>
+                <button type="button" class="button is-light symptom-button">Fever without rash</button>
+                <button type="button" class="button is-light symptom-button">Fever with rash</button>
+                <button type="button" class="button is-light symptom-button">Animal Bite – Broken Skin</button>
+                <button type="button" class="button is-light symptom-button">Animal Bite – Severe Bleeding</button>
+                <button type="button" class="button is-light symptom-button">Uncontrolled Bleeding</button>
+                <button type="button" class="button is-light symptom-button">Broken Bone – Out of Skin</button>
+                <button type="button" class="button is-light symptom-button">Stroke Symptoms</button>
+                <button type="button" class="button is-light symptom-button">Suicidal or Homicidal Feelings</button>
+                <button type="button" class="button is-light symptom-button">Sprained Ankle</button>
+                <button type="button" class="button is-light symptom-button">Broken Finger</button>
+                <button type="button" class="button is-light symptom-button">Eye Discharge</button>
+                <button type="button" class="button is-light symptom-button">Hives, Itchy Skin</button>
+                <button type="button" class="button is-light symptom-button">Trouble Breathing</button>
+            </div>
+
+            <!-- VITAL SIGNS SECTION - Properly placed in the HTML -->
+            <h2 class="subtitle">VITAL SIGNS STATUS</h2>
+            <div class="field-group">
+                <div class="field full-width">
+                    <div id="sensor-status" class="notification is-info">
+                        <p>After submitting this form, please proceed to the vital signs station to record your temperature, blood oxygen, and heart rate.</p>
+                        <p>Your form information will be automatically linked with your vital signs.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit button -->
+            <button class="button is-primary" type="submit" id="submit-button">Submit Form</button>
+        </form>
+        
+        <!-- Debug Information Box -->
+        <div id="debugBox" style="display: none;">
+            <h3 class="subtitle">Debug Information</h3>
+            <div class="tabs">
+                <ul>
+                    <li class="is-active"><a data-tab="request-tab">Request</a></li>
+                    <li><a data-tab="response-tab">Response</a></li>
+                </ul>
+            </div>
+            <div id="request-tab" class="tab-content">
+                <pre id="request-info">Waiting for form submission...</pre>
+            </div>
+            <div id="response-tab" class="tab-content" style="display: none;">
+                <pre id="response-info">No response data yet.</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Debug mode - change to true to display debug information
+        const DEBUG_MODE = true;
+        
+        // Show debug box if in debug mode
+        if (DEBUG_MODE) {
+            document.getElementById("debugBox").style.display = "block";
+        }
+        
+        // Tab functionality
+        document.querySelectorAll('.tabs li').forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Remove active class from all tabs
+                document.querySelectorAll('.tabs li').forEach(t => t.classList.remove('is-active'));
+                // Add active class to clicked tab
+                this.classList.add('is-active');
+                
+                // Hide all tab content
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.style.display = 'none';
+                });
+                
+                // Show the selected tab content
+                const tabId = this.querySelector('a').getAttribute('data-tab');
+                document.getElementById(tabId).style.display = 'block';
+            });
+        });
+        
+        // Helper function to show messages
+        function showMessage(text, bgColor, textColor) {
+            const messageBox = document.getElementById("message");
+            messageBox.textContent = text;
+            messageBox.style.display = "block";
+            messageBox.style.backgroundColor = bgColor;
+            messageBox.style.color = textColor;
+        }
+    
+        // Form submission handler
+        document.getElementById("form").addEventListener("submit", function (e) {
+            e.preventDefault(); // Prevent default form submission
+            
+            const messageBox = document.getElementById("message");
+            const submitButton = document.getElementById("submit-button");
+            
+            showMessage("Submitting...", "#f0f8ff", "#333");
+            
+            submitButton.disabled = true;
+            submitButton.classList.add("is-loading");
+            
+            // Collect form data
+            var formData = new FormData(this);
+            var formDataObj = {};
+            
+            // Convert FormData to regular object
+            for (let pair of formData.entries()) {
+                // Handle multiple values with the same name (like checkboxes)
+                if (formDataObj[pair[0]]) {
+                    if (!Array.isArray(formDataObj[pair[0]])) {
+                        formDataObj[pair[0]] = [formDataObj[pair[0]]];
+                    }
+                    formDataObj[pair[0]].push(pair[1]);
+                } else {
+                    formDataObj[pair[0]] = pair[1];
+                }
+            }
+            
+            // Convert to JSON string
+            var jsonData = JSON.stringify(formDataObj);
+            var formDataString = new URLSearchParams(formData).toString();
+            
+            // Debug log form data details
+            if (DEBUG_MODE) {
+                document.getElementById('request-info').textContent = 
+                    "Form Data Object:\n" + JSON.stringify(formDataObj, null, 2) + 
+                    "\n\nJSON Data:\n" + jsonData +
+                    "\n\nURL Encoded Data:\n" + formDataString;
+                
+                console.log("Form data object:", formDataObj);
+                console.log("JSON data:", jsonData);
+                console.log("URL encoded data:", formDataString);
+            }
+            
+            // Try both methods - first with URL-encoded (which is more likely to work with Apps Script)
+            fetch("https://script.google.com/macros/s/AKfycbyLtUJoQYfWFSOLJ5BnAO-LlXgOk-aGFOVMAxwQWGVa1Uw4m10feOxIfDkMCsif0o6E/exec", {
+                method: "POST",
+                body: formDataString,
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                // Add a longer timeout for slow connections
+                signal: AbortSignal.timeout(30000) // 30 second timeout
+            })
+            .then(response => {
+                // Debug log response details
+                if (DEBUG_MODE) {
+                    console.log("Response status:", response.status);
+                    console.log("Response status text:", response.statusText);
+                    console.log("Response headers:", [...response.headers.entries()]);
+                    
+                    document.getElementById('response-info').textContent = 
+                        "Response Status: " + response.status + " " + response.statusText + 
+                        "\n\nResponse Headers:\n" + [...response.headers.entries()].map(h => h[0] + ': ' + h[1]).join('\n');
+                }
+                
+                if (!response.ok) {
+                    throw new Error('Network response was not ok: ' + response.status + ' ' + response.statusText);
+                }
+                return response.text(); // Ensure response is read as text
+            })
+            .then(data => {
+                handleSuccessResponse(data);
+            })
+            .catch(error => {
+                console.warn("URL-encoded submission failed, trying JSON format:", error);
+                
+                // Try JSON as fallback
+                return fetch("https://script.google.com/macros/s/AKfycbyLtUJoQYfWFSOLJ5BnAO-LlXgOk-aGFOVMAxwQWGVa1Uw4m10feOxIfDkMCsif0o6E/exec", {
+                    method: "POST",
+                    body: jsonData,
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    signal: AbortSignal.timeout(30000)
+                })
+                .then(response => {
+                    if (DEBUG_MODE) {
+                        console.log("Fallback response status:", response.status);
+                        document.getElementById('response-info').textContent += 
+                            "\n\nFallback Response Status: " + response.status + " " + response.statusText;
+                    }
+                    
+                    if (!response.ok) {
+                        throw new Error('Fallback submission failed: ' + response.status);
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    handleSuccessResponse(data);
+                })
+                .catch(finalError => {
+                    handleErrorResponse(finalError);
+                });
+            });
+            
+            function handleSuccessResponse(data) {
+                // Debug log response data
+                if (DEBUG_MODE) {
+                    console.log('Response data:', data);
+                    document.getElementById('response-info').textContent += "\n\nResponse Body:\n" + data;
+                }
+                
+                if (data.includes("Success") || data.includes("success")) {
+                    // Success message
+                    showMessage("Data submitted successfully!", "green", "white");
+                    document.getElementById("form").reset();
+                    
+                    // Reset symptom buttons
+                    document.querySelectorAll(".symptom-button").forEach(btn => 
+                        btn.classList.remove("is-info"));
+                    
+                    // Auto-hide success messages after delay
+                    setTimeout(() => {
+                        messageBox.textContent = "";
+                        messageBox.style.display = "none";
+                    }, 2600);
+                } else {
+                    handleErrorResponse(new Error("Submission failed. Response: " + data));
+                }
+            }
+            
+            function handleErrorResponse(error) {
+                if (DEBUG_MODE) {
+                    console.error('Error:', error);
+                    document.getElementById('response-info').textContent += "\n\nError:\n" + error.toString();
+                }
+                
+                showMessage("Error: " + error.message, "red", "white");
+                
+                // Re-enable the submit button
+                submitButton.classList.remove("is-loading");
+                submitButton.disabled = false;
+            }
+        });
+    
+        // Symptom Button Selection
+        const symptomButtons = document.querySelectorAll(".symptom-button");
+        const symptomInput = document.getElementById("symptoms");
+    
+        symptomButtons.forEach(button => {
+            button.addEventListener("click", function () {
+                symptomInput.value = this.textContent; // Set symptom text to textarea
+                
+                // Provide visual feedback
+                const allButtons = document.querySelectorAll(".symptom-button");
+                allButtons.forEach(btn => btn.classList.remove("is-info"));
+                this.classList.add("is-info");
+            });
+        });
+    </script>
+</body>
+</html>
